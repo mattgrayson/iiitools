@@ -1,0 +1,1 @@
+LOCATION = ebook AND ACTION <> n AND 856 has http

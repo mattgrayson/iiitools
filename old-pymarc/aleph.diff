@@ -1,0 +1,112 @@
+# Bazaar merge directive format 2 (Bazaar 0.90)
+# revision_id: mark@matienzo.org-20091013025617-sf7zq45abotn6vml
+# target_branch: lp:pymarc
+# testament_sha1: 10673b46a4ee09b78940d3b6148b0ced271218ed
+# timestamp: 2009-10-12 23:13:04 -0400
+# base_revision_id: ed@curry-20090926021038-thdcnbsjw7411fgc
+# 
+# Begin patch
+=== modified file 'pymarc/reader.py'
+--- pymarc/reader.py	2008-08-23 23:27:28 +0000
++++ pymarc/reader.py	2009-10-13 02:56:17 +0000
+@@ -1,6 +1,6 @@
+ from cStringIO import StringIO
+ 
+-from pymarc import Record
++from pymarc import Record, AlephSequentialRecord
+ from pymarc.exceptions import RecordLengthInvalid
+ 
+ class Reader(object):
+@@ -56,6 +56,35 @@
+         record = Record(chunk)
+         return record 
+ 
++class AlephSequentialReader(MARCReader):
++    """
++    An iterator class for reading a file of MARC records in Aleph Sequential
++    format. Based on Tim Prettyman's MARC::File::AlephSeq Perl code.
++    """
++    def __init__(self, marc_target):
++        super(AlephSequentialReader, self).__init__(marc_target)
++
++    def next(self):
++        """
++        To support iteration.
++        """
++        record_data = ''
++        line = self.file_handle.readline()
++        if not line:
++            raise StopIteration
++        key = line[0:9]
++        current_key = key
++        
++        while key == current_key:
++            record_data += line
++            position = self.file_handle.tell()
++            line = self.file_handle.readline()
++            key = line[0:9]
++        
++        self.file_handle.seek(position)
++        record = AlephSequentialRecord(record_data)
++        return record
++
+ def map_records(f, *files):
+     """
+     Applies a given function to each record in a batch. You can
+
+=== modified file 'pymarc/record.py'
+--- pymarc/record.py	2009-09-26 02:10:38 +0000
++++ pymarc/record.py	2009-10-13 02:56:17 +0000
+@@ -317,6 +317,48 @@
+             return self['260']['c']
+         return None
+ 
++class AlephSequentialRecord(Record):
++    """A class for representing a MARC record from or for an Aleph system."""
++    
++    def __init__(self, data=''):
++        self.leader = (' '*10) + '22' + (' '*8) + '4500'
++        self.fields = list()
++        self.pos = 0
++        if len(data) > 0:
++            self.decode_aleph(data)
++    
++    def decode_aleph(self, data):
++        """decode_aleph() accepts a record in Aleph Sequential MARC format
++        and works similarly to Record.decode_marc(), but also extracts the
++        Aleph record ID and Aleph record format if available. Based on Tim
++        Prettyman's MARC::File::AlephSeq Perl code."""
++        self.aleph_id = data[0:9]
++        lines = data.splitlines()
++        for line in lines:
++            tag = line[10:13]
++            ind1 = line[13:14]
++            ind2 = line[14:15]
++            rest = line[18:]
++            if tag == 'FMT':
++                self.aleph_format = rest[:2]
++            elif tag == 'LDR':
++                self.leader = rest.replace('^', ' ') 
++            elif tag < '010':
++                if tag == '008': rest = rest.replace('^', ' ')
++                self.add_field(Field(tag=tag, data=rest))
++            else:
++                subfields = list()
++                subfield_data = rest.split('$$')
++                subfield_data.pop(0)
++                for subfield in subfield_data:
++                    subfields.extend([subfield[0], subfield[1:]])
++                self.add_field(Field(tag=tag, indicators=[ind1, ind2], 
++                    subfields=subfields))
++                    
++    def encode_aleph(self):
++        """To be implemented"""
++        raise NotImplementedError
++        
+ def map_marc8_record(r):
+     r.fields = map(map_marc8_field, r.fields)
+     l = list(r.leader)
+
+# Begin bundle
+
+esHMrAMhG0iQhMZiQEV6RuQ1S7b6t8ctzlzBd0BAzVlyR2x/8B4aSU7Ra9+mCvQfmBQX8B2y2/p6 qIWeHHcQRGLsoFt+5RtET/MDIN/xdyRThQkEa8+TMA==

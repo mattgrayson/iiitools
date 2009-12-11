@@ -1,0 +1,49 @@
+TAG NAME                            REPEATABLE?
+020 ISSN                            Yes
+022 ISBN                            Yes
+096 Call Number                     No         
+100 Author                          No        
+110 Corporate Author                No
+111 Meeting Name                    No
+130 Uniform Title                   No 
+210 Abbr Title                      Yes
+222 Key Title                       Yes
+229 LOCAL FIELD - Used for indexing records for "journal title" searches
+245 Title                           No  
+246 Vary. Form Title                Yes
+250 Edition                         No   
+256 Comp. File Char.                No  
+260 Publisher                       Yes        
+300 Description                     Yes        
+310 Pub. Frequency                  No
+321 Former Pub. Freq.               Yes
+362 Dates                           Yes
+440 Series (Obsolete)               Yes
+490 Series                          Yes
+500 Note                            Yes        
+502 Dissertation Note               Yes
+504 Bibliography Note               Yes
+505 Contents Note                   Yes
+506 Access Restrictions             Yes
+510 Ref. Note                       Yes
+516 Data Note                       Yes
+520 Summary                         Yes
+530 Addtl. Phys. Note               Yes
+533 Reproduction Note               Yes
+538 System Note                     Yes
+550 Issuing Body Note               Yes
+580 Linking Entry Complexity Note   Yes
+650 Subject                         Yes        
+700 Other Author                    Yes        
+710 Other Author (Corp)             Yes     
+730 Uniform Title                   Yes   
+760 Main Series                     Yes
+770 Special Issue                   Yes
+772 Supplement Parent               Yes
+776 Alt. Physcial Form              Yes
+780 Preceding Entry                 Yes
+785 Succeeding Entry                Yes
+787 Other Relationship              Yes
+830 Uniform Title                   Yes
+856 Online Access                   Yes
+936 ?????
