@@ -3,7 +3,7 @@
 # To change this template, choose Tools | Templates
 # and open the template in the editor.
 
-import iii
+import iiitools
 
 def print_record(record, full_output=False, output_marc=False, output_raw=False):
     print '*'*60
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     import sys
     args = sys.argv[1:]
 
-    reader = iii.IIIReader('http://opac.uthsc.edu')
+    reader = iiitools.Reader('http://opac.uthsc.edu')
 
     if len(args) == 1:
         record = reader.get_record(args[0])

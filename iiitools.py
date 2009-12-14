@@ -1,9 +1,25 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+"""
+iiiutils
+
+Utilities for interacting with III Millennium WebPac. Primary goal is to
+retrieve and parse bibliographic records via the WebPac proto-MARC output.
+
+Required: Python 2.5 or later
+Required: httplib2 <http://code.google.com/p/httplib2/>
+Required pymarc <http://github.com/edsu/pymarc>
+"""
+
+__author__ = "Matt Grayson (mattgrayson@uthsc.edu)"
+__copyright__ = "Copyright 2009, Matt Grayson"
+__license__ = "MIT"
+__version__ = "1.0"
 
 import httplib2
 import re
 from pymarc import Record, Field
+from string import Template
 
 class Leader(object):
     """
@@ -100,7 +116,7 @@ class Leader(object):
 
 
 
-class IIIRecord(Record):
+class Record(Record):
     PRECEEDING_ENTRY_LABELS = [
         "Continues",
         "Continues in part",
@@ -126,9 +142,8 @@ class IIIRecord(Record):
 
     ISSN_ISBN_PATTERN = re.compile('^([\w\d-]+)')
 
-    """docstring for IIIRecord"""
     def __init__(self, *args, **kwargs):
-        super(IIIRecord, self).__init__(*args, **kwargs)
+        super(Record, self).__init__(*args, **kwargs)
         self.type = None
         self.bibnumber = None
         self.raw = None
@@ -146,7 +161,9 @@ class IIIRecord(Record):
     addedentries = property(Record.addedentries)
     location = property(Record.location)        
     pubyear = property(Record.pubyear)
-
+        
+    
+    # Accessor methods for various fields
     @property
     def access_restrictions(self):
         return "; ".join([f.format_field() for f in self.get_fields('506')])
@@ -205,7 +222,7 @@ class IIIRecord(Record):
     @property
     def entry_preceding(self):
         return [{
-                    'title': "{0} {1}".format(f['a'], f['t']).strip(),
+                    'title': ("%s %s" % (f['a'], f['t'])).strip(),
                     'issn': f['x'],
                     'rel': self.PRECEEDING_ENTRY_LABELS[int(f.indicator2)]
                 } for f in self.get_fields('780')]
@@ -213,7 +230,7 @@ class IIIRecord(Record):
     @property
     def entry_succeeding(self):
         return [{
-                    'title': "{0} {1}".format(f['a'], f['t']).strip(),
+                    'title': ("%s %s" % (f['a'], f['t'])).strip(),
                     'issn': f['x'],
                     'rel': self.SUCCEEDING_ENTRY_LABELS[int(f.indicator2)]
                 } for f in self.get_fields('785')]
@@ -221,8 +238,6 @@ class IIIRecord(Record):
     @property
     def isbn(self):
         try:
-            # if anyone ever cares alot about performance
-            # this compilation could be moved out and compiled once
             isbn = [self.ISSN_ISBN_PATTERN.match(f['a']).group() for f in self.get_fields('020') if self.ISSN_ISBN_PATTERN.match(f['a'])]
         except TypeError:
             isbn = []
@@ -231,8 +246,6 @@ class IIIRecord(Record):
     @property
     def issn(self):
         try:
-            # if anyone ever cares alot about performance
-            # this compilation could be moved out and compiled once
             issn = [self.ISSN_ISBN_PATTERN.match(f['a']).group() for f in self.get_fields('022') if self.ISSN_ISBN_PATTERN.match(f['a'])]
         except TypeError:
             issn = []
@@ -337,11 +350,11 @@ class IIIRecord(Record):
             return str(dig) if dig != 10 else 'x'
 
 
-class IIIReader(object):
+class Reader(object):
     
-    URI_FOR_RECORD = '{host}/record={bibnum}~S2'
-    URI_FOR_MARC = '{host}/search~S2?/.{bibnum}/.{bibnum}/1%2C1%2C1%2CB/marc~{bibnum}'
-    URI_FOR_HOLDINGS = '{host}/search~S2/.{bibnum}/.{bibnum}/1,1,1,B/holdings'
+    URI_FOR_RECORD = Template('$host/record=$bibnum~S2')
+    URI_FOR_MARC = Template('$host/search~S2?/.$bibnum/.$bibnum/1%2C1%2C1%2CB/marc~$bibnum')
+    URI_FOR_HOLDINGS = Template('$host/search~S2/.$bibnum/.$bibnum/1,1,1,B/holdings')
     MARC_REGEX = re.compile(r'<pre>(.*)</pre>', re.DOTALL)
     
     def __init__(self, opac_host):        
@@ -357,7 +370,7 @@ class IIIReader(object):
     
     def record_exists(self, bibnumber):
         """
-        #>>> reader = IIIReader('http://opac.utmem.edu')
+        #>>> reader = Reader('http://opac.uthsc.edu')
         #>>> reader.record_exists('b1012752')
         #True
         #>>> reader.record_exists('b1012752...234245265')
@@ -365,7 +378,7 @@ class IIIReader(object):
         #>>> reader.record_exists('bz1012752')
         #False
         """
-        record_page = self.get_page(self.URI_FOR_RECORD.format(host=self.host, bibnum=bibnumber))
+        record_page = self.get_page(self.URI_FOR_RECORD.substitute(host=self.host, bibnum=bibnumber))
         if record_page and record_page.find('No Such Record') == -1:
             return True
         else:
@@ -373,7 +386,7 @@ class IIIReader(object):
     
     def get_record(self, bibnumber):
         """
-        >>> reader = IIIReader('http://opac.utmem.edu')
+        >>> reader = Reader('http://opac.uthsc.edu')
         >>> print reader.get_record('b1012752')
         Annales de genetique. 
         """
@@ -381,7 +394,7 @@ class IIIReader(object):
             raise ValueError("Invalid bib record number.")
         
         if self.record_exists(bibnumber):
-            record_page = self.get_page(self.URI_FOR_MARC.format(host=self.host, bibnum=bibnumber))
+            record_page = self.get_page(self.URI_FOR_MARC.substitute(host=self.host, bibnum=bibnumber))
             record_data = re.findall(self.MARC_REGEX, record_page)[0]
             record = self.decode(record_data)
             if record:
@@ -400,7 +413,7 @@ class IIIReader(object):
         records = []
         
         for num in range(bib_start, bib_end):
-            bibnum = "b{0}".format(num)
+            bibnum = "b%s" % (num,)
             record = self.get_record(bibnum)
             print bibnum
             if record:
@@ -413,7 +426,7 @@ class IIIReader(object):
         pseudo_marc = record.strip().split('\n')
         raw_fields = []
         if pseudo_marc[0][0:6] == 'LEADER':
-            record = IIIRecord()
+            record = Record()
             record.leader = pseudo_marc[0][7:].strip()
         else:
             return None
@@ -426,11 +439,11 @@ class IIIReader(object):
                 # Additional field data needs to be prepended with an extra space 
                 # for certain fields ...
                 for special_tag in ('55','260'):
-                    data = " {data}".format(data=data) if tag.startswith(special_tag) else data                
-                raw_fields[-1]['value'] = "{old}{new}".format(old=raw_fields[-1]['value'], new=data)
-                raw_fields[-1]['raw'] = "{old}{new}".format(old=raw_fields[-1]['raw'], new=field.strip())
+                    data = " %s" % (data,) if tag.startswith(special_tag) else data                
+                raw_fields[-1]['value'] = "%s%s" % (raw_fields[-1]['value'], data)
+                raw_fields[-1]['raw'] = "%s%s" % (raw_fields[-1]['raw'], field.strip())
             else:
-                data = data if (tag < '010' and tag.isdigit()) else "a{0}".format(data)
+                data = data if (tag < '010' and tag.isdigit()) else "a%s" % (data,)
                 raw_fields.append({
                     'tag': tag, 
                     'indicator1': field[3], 
@@ -459,7 +472,7 @@ def unescape_entities(text):
     """Removes HTML or XML character references 
       and entities from a text string.
       keep &amp;, &gt;, &lt; in the source code.
-      from Fredrik Lundh
+      Based on original code from Fredrik Lundh
       http://effbot.org/zone/re-sub.htm#unescape-html
       
       'text' must be a Unicode string
@@ -493,28 +506,4 @@ def unescape_entities(text):
                 pass
         return text # leave as is
     regex = re.compile(ur'&#?\w+;', re.UNICODE)    
-    return regex.sub(fixup, text)    
-
-
-if __name__ == "__main__":
-    import sys
-    args = sys.argv[1:]
-    
-    from datetime import datetime
-    start = datetime.now()
-    reader = IIIReader('http://opac.uthsc.edu')    
-    
-    if len(args) == 1:
-        record = reader.get_record(args[0])
-        print record
-    elif len(args) == 2:
-        # records = reader.crawl_records('b1069500','b1069530')
-        records = reader.crawl_records(args[0], args[1])
-                
-        end = datetime.now()    
-        elapsed = (end - start)
-        seconds = elapsed.seconds + elapsed.microseconds/float(1000000)
-        per_sec = len(records)/seconds
-        print "Total records found: {0}".format(len(records))
-        print "Total time: {0}".format(elapsed)
-        print "Records per second: {0}".format(per_sec)
+    return regex.sub(fixup, text)
