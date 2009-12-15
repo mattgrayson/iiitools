@@ -14,7 +14,7 @@ Requirements:   Python 2.5 or later
 __author__ = "Matt Grayson (mattgrayson@uthsc.edu)"
 __copyright__ = "Copyright 2009, Matt Grayson"
 __license__ = "MIT"
-__version__ = "1.0"
+__version__ = "1.01"
 
 import httplib2
 import re
@@ -26,6 +26,8 @@ class Leader(object):
     """
     Class for accessing the MARC Leader
     Ported from http://github.com/rsinger/enhanced-marc/blob/master/lib/enhanced_marc/leader.rb
+    
+    Used by iiitools.Record to determine the record type.
     """
     def __init__(self, data):        
         self.data = data
@@ -67,11 +69,13 @@ class Leader(object):
     
     @property
     def blvl_code(self):
+        r"""Returns bibliographic level code from self.data"""
         return self.data[7]
     
     @property
     def bibliographic_level(self):
-          blvls = {
+        r"""Returns label for bibliographic level code from self.data"""
+        blvls = {
             'a': 'Monographic component part',
             'b': 'Serial component part',
             'c': 'Collection',
@@ -79,15 +83,17 @@ class Leader(object):
             'i': 'Integrating resource',
             'm': 'Monograph/Item',
             's': 'Serial'
-          }
-          return blvls[self.blvl_code]    
+        }
+        return blvls[self.blvl_code]    
     
     @property
     def elvl_code(self):
+        r"""Returns encoding level code from self.data"""
         return self.data[17]
     
     @property
     def encoding_level(self):
+        r"""Returns label for encoding level code from self.data"""
         elvls = {
             ' ': 'Full',
             '1': 'Full, not examined',
@@ -108,16 +114,26 @@ class Leader(object):
     
     @property
     def desc_code(self):
+        r"""Returns descriptive cataloging form code from self.data"""
         return self.data[18]
     
     @property
     def descriptive_cataloging_form(self):
+        r"""
+        Returns label for descriptive cataloging form code from self.data
+        """
         codes = {' ': 'Non-ISBD', 'a': 'AACR2', 'i': 'ISBD', 'u': 'Unknown'}
         return codes[self.desc_code]
 
 
 
 class Record(Record):
+    r"""
+    Extension to pymarc.Record. Some methods and properties are just 
+    convenience accessors, some are specific to III and others are specific 
+    to opac.uthsc.edu (i.e. call_number).
+    """
+    
     PRECEEDING_ENTRY_LABELS = [
         "Continues",
         "Continues in part",
@@ -153,6 +169,7 @@ class Record(Record):
         self.record_marc_url = ''
     
     def parse_leader(self):
+        """Parses leader data to try to detect the record type."""
         self.leader = Leader(self.leader)
         self.type = self.leader.type
 
@@ -164,7 +181,6 @@ class Record(Record):
     addedentries = property(Record.addedentries)
     location = property(Record.location)        
     pubyear = property(Record.pubyear)
-        
     
     # Accessor methods for various fields
     @property
@@ -365,6 +381,9 @@ class Record(Record):
 
 
 class Reader(object):
+    """
+    Main interface for retrieving records from III Millennium WebPac.
+    """
     
     URI_FOR_RECORD = Template('$host/record=$bibnum~S$scope')
     URI_FOR_MARC = Template('$host/search~S$scope?/.$bibnum/.$bibnum/1%2C1%2C1%2CB/marc~$bibnum')
@@ -384,14 +403,14 @@ class Reader(object):
             return None            
     
     def record_exists(self, bibnumber):
-        """
-        #>>> reader = Reader('http://opac.uthsc.edu')
-        #>>> reader.record_exists('b1012752')
-        #True
-        #>>> reader.record_exists('b1012752...234245265')
-        #True
-        #>>> reader.record_exists('bz1012752')
-        #False
+        r"""
+        >>> reader = Reader('http://opac.uthsc.edu')
+        >>> reader.record_exists('b1012752')
+        True
+        >>> reader.record_exists('b1012752...234245265')
+        True
+        >>> reader.record_exists('bz1012752')
+        False
         """
         record_page = self.get_page(self.URI_FOR_RECORD.substitute(host=self.host, bibnum=bibnumber, scope=self.scope))
         if record_page and record_page.find('No Such Record') == -1:
@@ -400,10 +419,15 @@ class Reader(object):
             return False
     
     def get_record(self, bibnumber):
-        """
+        r"""
         >>> reader = Reader('http://opac.uthsc.edu')
-        >>> print reader.get_record('b1012752')
-        Annales de genetique. 
+        >>> record = reader.get_record('b1012752')
+        >>> print record.title
+        Annales de genetique
+        >>> print record.urls
+        [{'url': 'http://library.uthsc.edu/ems/eresource/3581', 'label': 'Full text  at ScienceDirect: 43(1) Jan 2000 - 47(4) Dec 2004'}]
+        >>> print record.subjects
+        ['Genetics -- Periodicals.']
         """
         if not bibnumber.startswith('b'):
             raise ValueError("Invalid bib record number.")
@@ -424,6 +448,14 @@ class Reader(object):
             return None
     
     def crawl_records(self, bib_start, bib_end):
+        r"""
+        >>> reader = Reader('http://opac.uthsc.edu', 2)
+        >>> records = reader.crawl_records('b1053852', 'b1053862')
+        >>> len(records)
+        9
+        >>> records[0].title
+        'Molecular biology of the cell / Bruce Alberts ... [et  al.] ; with problems by John Wilson, Tim Hunt'
+        """
         if not bib_start.startswith('b') or not bib_end.startswith('b'):
             raise ValueError("Invalid bib record number(s).")
     
@@ -434,14 +466,19 @@ class Reader(object):
         for num in range(bib_start, bib_end):
             bibnum = "b%s" % (num,)
             record = self.get_record(bibnum)
-            print bibnum
             if record:
-                print record
                 records.append(record)
-            print '*'*100
         return records    
     
     def decode_record(self, record):
+        r"""
+        >>> reader = Reader('http://opac.uthsc.edu', 2)
+        >>> raw = "\nLEADER 00000cas  2200517 a 4500 \n001    1481253 \n003    OCoLC \n005    19951109120000.0 \n008    750727c19589999fr qrzp   b   0   b0fre d \n010    sn 86012727 \n022    0003-3995 \n030    AGTQAH \n035    0062827|bMULS|aPITT  NO.  0639600000|asa64872000|bFULS \n040    MUL|cMUL|dFUL|dOCL|dCOO|dNYG|dHUL|dSER|dAIP|dNST|dAGL|dDLC\n       |dTUM \n041 0  engfre|bgeritaspa \n042    nsdp \n049    TUMS \n069 1  A32025000 \n210 0  Ann. genet. \n222  0 Annales de genetique \n229 00 Annales de genetique \n229    Ann Genet \n242 00 Annals on genetics \n245 00 Annales de genetique. \n260    Paris :|bExpansion scientifique,|c1958-2004. \n300    v. :|bill. &#59;|c28 cm. \n310    Quarterly \n321    Two no. a year \n362 0  1,1958-47,2004. \n510 1  Excerpta medica \n510 1  Index medicus|x0019-3879 \n510 2  Biological abstracts|x0006-3169 \n510 2  Chemical abstracts|x0009-2258 \n510 2  Life sciences collection \n510 0  Bulletin signaletique \n510 0  Current contents \n546    French and English, with summaries in German, Italian, and\n       Spanish. \n550    Journal of the Societe francaise de genetique. \n650  2 Genetics|vPeriodicals. \n710 2  Societ\xe9 fran\xe7aise de genetique. \n785 00 |tEuropean journal of medical genetics.  \n856 41 |uhttp://library.uthsc.edu/ems/eresource/3581|zFull text \n       at ScienceDirect: 43(1) Jan 2000 - 47(4) Dec 2004 \n936    Unknown|ajuin 1977 \n"
+        >>> record = reader.decode_record(raw)
+        >>> print record.title
+        Annales de genetique
+        """
+        
         pseudo_marc = record.strip().split('\n')
         raw_fields = []
         if pseudo_marc[0][0:6] == 'LEADER':
@@ -488,10 +525,13 @@ class Reader(object):
         return record
     
     def get_items_for_record(self, bibnumber):
-        """
+        r"""
         >>> reader = Reader('http://opac.uthsc.edu', 2)
         >>> items = reader.get_items_for_record('b1012752')
-        Annales de genetique. 
+        >>> items[0]
+        {'status': 'AVAILABLE', 'call_num': 'v.47 no.4 Oct/Dec 2004', 'url': '', 'location': 'Journal Collection'}
+        >>> len(items)
+        56
         """
         if not bibnumber.startswith('b'):
             raise ValueError("Invalid bib record number.")
@@ -521,15 +561,20 @@ class Reader(object):
             return []
 
 def unescape_entities(text):
-    """Removes HTML or XML character references 
-      and entities from a text string.
-      keep &amp;, &gt;, &lt; in the source code.
-      Based on original code from Fredrik Lundh
-      http://effbot.org/zone/re-sub.htm#unescape-html
+    r"""
+    Removes HTML or XML character references and entities from a text string.
+    Keeps &amp;, &gt;, &lt; in the source code. Based on original from Fredrik 
+    Lundh. http://effbot.org/zone/re-sub.htm#unescape-html
       
-      'text' must be a Unicode string
+    Note: 'text' must be a Unicode string
+    
+    >>> output = unescape_entities(u'This leads to &raquo; that')
+    >>> print output.encode('utf8')
+    This leads to » that
     """
     def fixup(m):
+        import htmlentitydefs
+        
         text = m.group(0)
         if text[:2] == "&#":
             # character reference
@@ -551,7 +596,6 @@ def unescape_entities(text):
                 elif text[1:-1] == "lt":
                     text = "&amp;lt;"
                 else:
-                    print text[1:-1]
                     text = unichr(htmlentitydefs.name2codepoint[text[1:-1]])
             except KeyError:
                 print "keyerror"
@@ -561,6 +605,9 @@ def unescape_entities(text):
     return regex.sub(fixup, text)
 
 def strip_end_punctuation(text):
-    #table = string.maketrans("","")
-    #text = text[-1].translate(table, string.punctuation)
     return text[:-1] if text[-1] in string.punctuation else text
+    
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()

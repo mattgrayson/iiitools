@@ -24,6 +24,6 @@ Required pymarc <http://github.com/edsu/pymarc>
 To install:
 $ python setup.py install
 """,
-    version='1.0',
+    version='1.01',
     py_modules=['iiitools'],
 )
