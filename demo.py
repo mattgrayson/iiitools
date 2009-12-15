@@ -5,16 +5,21 @@
 
 import iiitools
 
-def print_record(record, full_output=False, output_marc=False, output_raw=False):
+def print_record(record, full_output=False, output_marc=False, output_raw=False, items=None):
     print '*'*60
     print "Bib #: {0}".format(record.bibnumber)
     print "Check digit: {0}".format(record.check_digit)
     print "Call #: {0}".format(record.call_number)
+    print "Source URL: {0}".format(record.src_host)
+    print "Record URL: {0}".format(record.record_url)
+    print "Record MARC URL: {0}".format(record.record_marc_url)
     print "Type: {0}".format(record.type)
+    print '-'*60
     print "Title: {0}".format(record.title)
     print "ISSN(s): {0}".format(', '.join(record.issn))
     print "ISBN(s): {0}".format(', '.join(record.isbn))
     print "Publisher(s): {0}".format(', '.join(record.publisher))
+    print "Publisher name(s): {0}".format(', '.join(record.publisher_name))
     print "Author: {0}".format(record.author)
     print "URLs:"
     for url in record.urls: print " - {0}: {1}".format(url['label'], url['url'])
@@ -51,13 +56,20 @@ def print_record(record, full_output=False, output_marc=False, output_raw=False)
 
         print "Entry notes:"
         for en in record.entry_notes: print " - {0}".format(en)
-
+    
+    if items:
+        print '-'*60
+        print "Current Holdings:"
+        print '-'*60
+        print "Location\t\t\tCall Number\t\t\tStatus"
+        for i in items:
+            print "{0}\t\t\t{1}\t\t\t{2}".format(i['location'], i['call_num'],i['status'])
     if output_marc:
-      print '-'*60
-      print record
+        print '-'*60
+        print record
     if output_raw:
-      print '-'*60
-      print record.raw
+        print '-'*60
+        print record.raw
     print '*'*60
 
 
@@ -65,12 +77,13 @@ if __name__ == "__main__":
     import sys
     args = sys.argv[1:]
 
-    reader = iiitools.Reader('http://opac.uthsc.edu')
+    reader = iiitools.Reader('http://opac.uthsc.edu', scope=2)
 
     if len(args) == 1:
         record = reader.get_record(args[0])
+        items = reader.get_items_for_record(args[0])
         if record:
-            print_record(record, True, True, True)
+            print_record(record, True, True, True, items)
     elif len(args) == 2:
         if not args[0].startswith('b') or not args[1].startswith('b'):
             raise ValueError("Invalid bib record number(s).")

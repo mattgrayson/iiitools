@@ -6,9 +6,9 @@ iiiutils
 Utilities for interacting with III Millennium WebPac. Primary goal is to
 retrieve and parse bibliographic records via the WebPac proto-MARC output.
 
-Required: Python 2.5 or later
-Required: httplib2 <http://code.google.com/p/httplib2/>
-Required pymarc <http://github.com/edsu/pymarc>
+Requirements:   Python 2.5 or later
+                httplib2 <http://code.google.com/p/httplib2/>
+                pymarc <http://github.com/edsu/pymarc>
 """
 
 __author__ = "Matt Grayson (mattgrayson@uthsc.edu)"
@@ -18,6 +18,7 @@ __version__ = "1.0"
 
 import httplib2
 import re
+import string
 from pymarc import Record, Field
 from string import Template
 
@@ -147,6 +148,9 @@ class Record(Record):
         self.type = None
         self.bibnumber = None
         self.raw = None
+        self.src_host = ''
+        self.record_url = ''
+        self.record_marc_url = ''
     
     def parse_leader(self):
         self.leader = Leader(self.leader)
@@ -156,7 +160,6 @@ class Record(Record):
         return True if self['856'] else False
 
     # Turn certain pymarc.Record attribute methods into properties
-    title = property(Record.title)        
     author = property(Record.author)    
     addedentries = property(Record.addedentries)
     location = property(Record.location)        
@@ -263,7 +266,11 @@ class Record(Record):
     @property
     def publisher(self):
         return [f.format_field() for f in self.get_fields('260')]
-
+    
+    @property
+    def publisher_name(self):
+        return [strip_end_punctuation(f['b']) for f in self.get_fields('260')]
+    
     @property
     def pub_dates(self):
         return [f.format_field() for f in self.get_fields('362')]
@@ -301,7 +308,14 @@ class Record(Record):
     @property
     def supplement_parent(self):
         return [f.format_field() for f in self.get_fields('772')]
-
+    
+    @property
+    def title(self):        
+        t = self['245']['a'] if self['245']['a'] else ''
+        t = "%s %s" % (t, self['245']['b']) if self['245']['b'] else t
+        t = "%s %s" % (t, self['245']['c']) if self['245']['c'] else t
+        return strip_end_punctuation(t)
+    
     @property
     def title_varying_forms(self):
         return [f.format_field() for f in self.get_fields('246')]
@@ -352,13 +366,14 @@ class Record(Record):
 
 class Reader(object):
     
-    URI_FOR_RECORD = Template('$host/record=$bibnum~S2')
-    URI_FOR_MARC = Template('$host/search~S2?/.$bibnum/.$bibnum/1%2C1%2C1%2CB/marc~$bibnum')
-    URI_FOR_HOLDINGS = Template('$host/search~S2/.$bibnum/.$bibnum/1,1,1,B/holdings')
+    URI_FOR_RECORD = Template('$host/record=$bibnum~S$scope')
+    URI_FOR_MARC = Template('$host/search~S$scope?/.$bibnum/.$bibnum/1%2C1%2C1%2CB/marc~$bibnum')
+    URI_FOR_HOLDINGS = Template('$host/search~S$scope/.$bibnum/.$bibnum/1,1,1,B/holdings')
     MARC_REGEX = re.compile(r'<pre>(.*)</pre>', re.DOTALL)
     
-    def __init__(self, opac_host):        
+    def __init__(self, opac_host, scope=''):        
         self.host = opac_host
+        self.scope = scope
         self.conn = httplib2.Http()    
     
     def get_page(self, url):
@@ -378,7 +393,7 @@ class Reader(object):
         #>>> reader.record_exists('bz1012752')
         #False
         """
-        record_page = self.get_page(self.URI_FOR_RECORD.substitute(host=self.host, bibnum=bibnumber))
+        record_page = self.get_page(self.URI_FOR_RECORD.substitute(host=self.host, bibnum=bibnumber, scope=self.scope))
         if record_page and record_page.find('No Such Record') == -1:
             return True
         else:
@@ -394,12 +409,16 @@ class Reader(object):
             raise ValueError("Invalid bib record number.")
         
         if self.record_exists(bibnumber):
-            record_page = self.get_page(self.URI_FOR_MARC.substitute(host=self.host, bibnum=bibnumber))
+            record_page = self.get_page(self.URI_FOR_MARC.substitute(host=self.host, bibnum=bibnumber, scope=self.scope))
             record_data = re.findall(self.MARC_REGEX, record_page)[0]
-            record = self.decode(record_data)
+            record = self.decode_record(record_data)
             if record:
+                # Store relevant system data in record object
                 record.bibnumber = bibnumber
                 record.raw = record_data
+                record.src_host = self.host
+                record.record_url = self.URI_FOR_RECORD.substitute(host=self.host, bibnum=bibnumber, scope=self.scope)
+                record.record_marc_url = self.URI_FOR_MARC.substitute(host=self.host, bibnum=bibnumber, scope=self.scope)
             return record
         else:
             return None
@@ -422,7 +441,7 @@ class Reader(object):
             print '*'*100
         return records    
     
-    def decode(self, record):
+    def decode_record(self, record):
         pseudo_marc = record.strip().split('\n')
         raw_fields = []
         if pseudo_marc[0][0:6] == 'LEADER':
@@ -467,6 +486,39 @@ class Reader(object):
             
         record.parse_leader()
         return record
+    
+    def get_items_for_record(self, bibnumber):
+        """
+        >>> reader = Reader('http://opac.uthsc.edu', 2)
+        >>> items = reader.get_items_for_record('b1012752')
+        Annales de genetique. 
+        """
+        if not bibnumber.startswith('b'):
+            raise ValueError("Invalid bib record number.")
+        
+        if self.record_exists(bibnumber):
+            from lxml import html
+            url = self.URI_FOR_HOLDINGS.substitute(host=self.host, 
+                    bibnum=bibnumber, scope=self.scope)
+            record_holdings_page = self.get_page(url)
+            items_data = html.document_fromstring(record_holdings_page)
+            table_rows = items_data.cssselect('.bibItems tr.bibItemsEntry')
+            table_rows.reverse() # Sort from newest to oldest
+            items = []
+            for item in table_rows:                
+                if item[1].cssselect('a'):
+                    url = item[1].cssselect('a')[0].get('href').encode('utf8')
+                else:
+                    url = ''
+                items.append({
+                    'location': item[0].text_content().strip().encode('utf8'), 
+                    'call_num': item[1].text_content().strip().encode('utf8'), 
+                    'status': item[2].text_content().strip().encode('utf8'),
+                    'url': url
+                })
+            return items
+        else:
+            return []
 
 def unescape_entities(text):
     """Removes HTML or XML character references 
@@ -507,3 +559,8 @@ def unescape_entities(text):
         return text # leave as is
     regex = re.compile(ur'&#?\w+;', re.UNICODE)    
     return regex.sub(fixup, text)
+
+def strip_end_punctuation(text):
+    #table = string.maketrans("","")
+    #text = text[-1].translate(table, string.punctuation)
+    return text[:-1] if text[-1] in string.punctuation else text
