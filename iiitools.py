@@ -14,7 +14,7 @@ Requirements:   Python 2.5 or later
 __author__ = "Matt Grayson (mattgrayson@uthsc.edu)"
 __copyright__ = "Copyright 2009, Matt Grayson"
 __license__ = "MIT"
-__version__ = "1.01"
+__version__ = "1.02"
 
 import httplib2
 import re
@@ -173,11 +173,10 @@ class Record(Record):
         self.leader = Leader(self.leader)
         self.type = self.leader.type
 
-    def has_url(self):
+    def has_link(self):
         return True if self['856'] else False
 
     # Turn certain pymarc.Record attribute methods into properties
-    author = property(Record.author)    
     addedentries = property(Record.addedentries)
     location = property(Record.location)        
     pubyear = property(Record.pubyear)
@@ -186,6 +185,13 @@ class Record(Record):
     @property
     def access_restrictions(self):
         return "; ".join([f.format_field() for f in self.get_fields('506')])
+    
+    @property
+    def author(self):
+        for field in ('100','110','111'):
+            if self[field]:
+                return self[field].format_field()
+        return ''
     
     @property
     def author_name(self):
@@ -197,9 +203,9 @@ class Record(Record):
     @property
     def author_dates(self):
         for field in ('100','110','111'):
-            if self[field]:
+            if self[field] and self[field]['c']:
                 return self[field].get_subfields('c')
-        return ''
+        return []
 
     @property
     def other_authors(self):
@@ -221,10 +227,6 @@ class Record(Record):
         return " ".join([f.format_field() for f in self.get_fields('505')])
 
     @property
-    def description_physical(self):
-        return "; ".join([f.format_field() for f in self.get_fields('300')])
-
-    @property
     def edition(self):
         return self['250'].format_field() if self['250'] else ''
 
@@ -242,7 +244,7 @@ class Record(Record):
     def entry_preceding(self):
         return [{
                     'title': ("%s %s" % (f['a'], f['t'])).strip(),
-                    'issn': f['x'],
+                    'issn': f['x'] if f['x'] else '',
                     'rel': self.PRECEEDING_ENTRY_LABELS[int(f.indicator2)]
                 } for f in self.get_fields('780')]
 
@@ -250,25 +252,29 @@ class Record(Record):
     def entry_succeeding(self):
         return [{
                     'title': ("%s %s" % (f['a'], f['t'])).strip(),
-                    'issn': f['x'],
-                    'rel': self.SUCCEEDING_ENTRY_LABELS[int(f.indicator2)]
+                    'issn': f['x'] if f['x'] else '',
+                    'rel': self.SUCCEEDING_ENTRY_LABELS[int(f.indicator2)] if f.indicator2.strip() else ''
                 } for f in self.get_fields('785')]
 
     @property
     def isbn(self):
-        try:
-            isbn = [self.ISSN_ISBN_PATTERN.match(f['a']).group() for f in self.get_fields('020') if self.ISSN_ISBN_PATTERN.match(f['a'])]
-        except TypeError:
-            isbn = []
-        return isbn
+        if self.get_fields('020'):
+            return [self.ISSN_ISBN_PATTERN.match(f['a']).group() for f in self.get_fields('020') if self.ISSN_ISBN_PATTERN.match(f['a'])]
+        else:
+            return []
 
     @property
     def issn(self):
-        try:
-            issn = [self.ISSN_ISBN_PATTERN.match(f['a']).group() for f in self.get_fields('022') if self.ISSN_ISBN_PATTERN.match(f['a'])]
-        except TypeError:
-            issn = []
-        return issn
+        if self.get_fields('022'):
+            return [self.ISSN_ISBN_PATTERN.match(f['a']).group() for f in self.get_fields('022') if self.ISSN_ISBN_PATTERN.match(f['a'])]
+        else:
+            return []
+
+    @property
+    def links(self):
+        if self.has_link():
+            return [{'url': f.get_subfields('u')[0], 'label': f.get_subfields('z')[0] } for f in self.get_fields('856')]
+        return []
 
     @property
     def notes(self):
@@ -278,14 +284,18 @@ class Record(Record):
             if field in ignore: continue
             notes += [f.format_field() for f in self.get_fields(field.__str__())]
         return notes
-
+    
     @property
-    def publisher(self):
+    def physical_description(self):
+        return "; ".join([f.format_field() for f in self.get_fields('300')])
+    
+    @property
+    def publishers(self):
         return [f.format_field() for f in self.get_fields('260')]
     
     @property
-    def publisher_name(self):
-        return [strip_end_punctuation(f['b']) for f in self.get_fields('260')]
+    def publisher_names(self):
+        return [strip_end_punctuation(f['b']) for f in self.get_fields('260') if f['b']]
     
     @property
     def pub_dates(self):
@@ -296,7 +306,7 @@ class Record(Record):
         return self['310'].format_field() if self['310'] else ''
 
     @property
-    def pub_frequency_former(self):
+    def former_pub_frequencies(self):
         return [f.format_field() for f in self.get_fields('321')]
 
     @property
@@ -318,11 +328,11 @@ class Record(Record):
         return " ".join([f.format_field() for f in self.get_fields('520')])
 
     @property
-    def supplement(self):
+    def supplements(self):
         return [f.format_field() for f in self.get_fields('770')]
 
     @property
-    def supplement_parent(self):
+    def supplement_parents(self):
         return [f.format_field() for f in self.get_fields('772')]
     
     @property
@@ -351,12 +361,6 @@ class Record(Record):
     @property
     def title_uniform(self):
         return self['130'].format_field() if self['130'] else ''
-
-    @property
-    def urls(self):
-        if self.has_url():
-            return [{'url': f.get_subfields('u')[0], 'label': f.get_subfields('z')[0] } for f in self.get_fields('856')]
-        return []
 
     @property
     def check_digit(self):
@@ -439,7 +443,7 @@ class Reader(object):
             if record:
                 # Store relevant system data in record object
                 record.bibnumber = bibnumber
-                record.raw = record_data
+                record.raw = record_data.decode('latin1')
                 record.src_host = self.host
                 record.record_url = self.URI_FOR_RECORD.substitute(host=self.host, bibnum=bibnumber, scope=self.scope)
                 record.record_marc_url = self.URI_FOR_MARC.substitute(host=self.host, bibnum=bibnumber, scope=self.scope)

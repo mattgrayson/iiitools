@@ -18,8 +18,8 @@ def print_record(record, full_output=False, output_marc=False, output_raw=False,
     print "Title: {0}".format(record.title)
     print "ISSN(s): {0}".format(', '.join(record.issn))
     print "ISBN(s): {0}".format(', '.join(record.isbn))
-    print "Publisher(s): {0}".format(', '.join(record.publisher))
-    print "Publisher name(s): {0}".format(', '.join(record.publisher_name))
+    print "Publisher(s): {0}".format(', '.join(record.publishers))
+    print "Publisher name(s): {0}".format(', '.join(record.publisher_names))
     print "Author: {0}".format(record.author)
     print "URLs:"
     for url in record.urls: print " - {0}: {1}".format(url['label'], url['url'])
@@ -35,9 +35,9 @@ def print_record(record, full_output=False, output_marc=False, output_raw=False,
         print "Varying form(s) of title: {0}".format(', '.join(record.title_varying_forms))
         print "Edition: {0}".format(record.edition)
         print "Computer file characteristics: {0}".format(record.comp_file_characteristics)
-        print "Physical description: {0}".format(record.description_physical)
+        print "Physical description: {0}".format(record.physical_description)
         print "Publication frequency: {0}".format(record.pub_frequency)
-        print "Former publication frequencies: {0}".format('; '.join(record.pub_frequency_former))
+        print "Former publication frequencies: {0}".format('; '.join(record.former_pub_frequencies))
         print "Publication dates: {0}".format('; '.join(record.pub_dates))
         print "Series: {0}".format('; '.join(record.series))
         print "Notes: "

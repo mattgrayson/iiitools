@@ -1,4 +1,4 @@
-III Utils, v. 1.0
+III Utils, v. 1.02
 
 Utilities for interacting with III Millennium WebPac. Primary goal is to
 retrieve and parse bibliographic records via the WebPac proto-MARC output.
