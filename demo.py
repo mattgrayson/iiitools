@@ -22,7 +22,7 @@ def print_record(record, full_output=False, output_marc=False, output_raw=False,
     print "Publisher name(s): {0}".format(', '.join(record.publisher_names))
     print "Author: {0}".format(record.author)
     print "URLs:"
-    for url in record.urls: print " - {0}: {1}".format(url['label'], url['url'])
+    for url in record.links: print " - {0}: {1}".format(url['label'], url['url'])
     if full_output:
         print "Author name: {0}".format(record.author_name)
         print "Author dates: {0}".format('; '.join(record.author_dates))

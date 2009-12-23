@@ -14,7 +14,7 @@ Requirements:   Python 2.5 or later
 __author__ = "Matt Grayson (mattgrayson@uthsc.edu)"
 __copyright__ = "Copyright 2009, Matt Grayson"
 __license__ = "MIT"
-__version__ = "1.02"
+__version__ = "1.03"
 
 import httplib2
 import re
@@ -196,7 +196,7 @@ class Record(Record):
     @property
     def author_name(self):
         for field in ('100','110','111'):
-            if self[field]:
+            if self[field] and self[field]['a']:
                 return self[field].get_subfields('a')[0]
         return ''
     
@@ -273,7 +273,15 @@ class Record(Record):
     @property
     def links(self):
         if self.has_link():
-            return [{'url': f.get_subfields('u')[0], 'label': f.get_subfields('z')[0] } for f in self.get_fields('856')]
+            # u/a subfield check required in case the URL accidentally gets 
+            # put into the a subfield.
+            return [    
+                        {
+                            'url': f.get_subfields('u')[0] if f.get_subfields('u') else f.get_subfields('a')[0], 
+                            'label': f.get_subfields('z')[0] if f.get_subfields('z') else '' 
+                        } 
+                        for f in self.get_fields('856')
+                    ]
         return []
 
     @property
@@ -382,6 +390,45 @@ class Record(Record):
                 multiplier += 1
             dig = total % 11
             return str(dig) if dig != 10 else 'x'
+    
+    def __dict__(self):
+        return {
+            'bibnumber': self.bibnumber,
+            'check_digit': self.check_digit,
+            'call_number': self.call_number,
+            'src_host': self.src_host,
+            'record_url': self.record_url,
+            'record_marc_url': self.record_marc_url,
+            'type': self.type,
+            'title': self.title,
+            'issn': self.issn,
+            'isbn': self.isbn,
+            'publishers': self.publishers,
+            'publisher_names': self.publisher_names,
+            'author': self.author,
+            'links': [{'label': link['label'], 'url': link['url']} for link in self.links],
+            'author_name': self.author_name,
+            'author_dates': self.author_dates,
+            'other_authors': [a for a in self.other_authors],
+            'title_uniform': self.title_uniform,
+            'title_abbrv': self.title_abbrv,
+            'title_key': self.title_key,
+            'title_varying_forms': self.title_varying_forms,
+            'edition': self.edition,
+            'comp_file_characteristics': self.comp_file_characteristics,
+            'physical_description': self.physical_description,
+            'pub_frequency': self.pub_frequency,
+            'former_pub_frequencies': self.former_pub_frequencies,
+            'pub_dates': self.pub_dates,
+            'series': self.series,
+            'notes': [n for n in self.notes],
+            'summary': self.summary,
+            'contents': self.contents,
+            'subjects': [s for s in self.subjects],
+            'preceding_titles': [{'title': ep['title'], 'issn': ep['issn'], 'rel': ep['rel']} for ep in self.entry_preceding],
+            'succeeding_titles': [{'title': ep['title'], 'issn': ep['issn'], 'rel': ep['rel']} for ep in self.entry_succeeding],
+            'entry_notes': [en for en in self.entry_notes]
+        }
 
 
 class Reader(object):
@@ -526,7 +573,12 @@ class Reader(object):
             record.add_field(field)
             
         record.parse_leader()
-        return record
+        
+        # Disregard record if no title present
+        if not record.get_fields('245'):
+            return None
+        else:
+            return record
     
     def get_items_for_record(self, bibnumber):
         r"""
