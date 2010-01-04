@@ -16,6 +16,7 @@ def print_record(record, full_output=False, output_marc=False, output_raw=False,
     print "Type: {0}".format(record.type)
     print '-'*60
     print "Title: {0}".format(record.title)
+    print "Statement of Responsibility: {0}".format(record.statement_of_responsibility)
     print "ISSN(s): {0}".format(', '.join(record.issn))
     print "ISBN(s): {0}".format(', '.join(record.isbn))
     print "Publisher(s): {0}".format(', '.join(record.publishers))

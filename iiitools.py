@@ -14,7 +14,7 @@ Requirements:   Python 2.5 or later
 __author__ = "Matt Grayson (mattgrayson@uthsc.edu)"
 __copyright__ = "Copyright 2009, Matt Grayson"
 __license__ = "MIT"
-__version__ = "1.03"
+__version__ = "1.04"
 
 import httplib2
 import re
@@ -326,7 +326,11 @@ class Record(Record):
     @property
     def series_main(self):
         return [f.format_field() for f in self.get_fields('760')]
-
+    
+    @property
+    def statement_of_responsibility(self):
+        return strip_end_punctuation(self['245']['c']) if self['245']['c'] else ''
+    
     @property
     def subjects(self):
         return [f.format_field() for f in self.get_fields('650')]
@@ -347,7 +351,6 @@ class Record(Record):
     def title(self):        
         t = self['245']['a'] if self['245']['a'] else ''
         t = "%s %s" % (t, self['245']['b']) if self['245']['b'] else t
-        t = "%s %s" % (t, self['245']['c']) if self['245']['c'] else t
         return strip_end_punctuation(t)
     
     @property
@@ -540,8 +543,8 @@ class Reader(object):
 
         for field in pseudo_marc[1:]:
             tag = field[:3]
-            data = unescape_entities(field[6:].decode('latin1')).encode('utf8')
-                        
+            data = unescape_entities(field[7:].decode('latin1')).encode('utf8')
+
             if tag.startswith(' '):
                 # Additional field data needs to be prepended with an extra space 
                 # for certain fields ...
