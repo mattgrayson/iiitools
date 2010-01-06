@@ -225,7 +225,11 @@ class Record(Record):
     @property
     def contents(self):
         return " ".join([f.format_field() for f in self.get_fields('505')])
-
+    
+    @property
+    def date_published(self):
+        return self['260']['c'] if (self['260'] and self['260']['c']) else ''
+    
     @property
     def edition(self):
         return self['250'].format_field() if self['250'] else ''
@@ -543,13 +547,14 @@ class Reader(object):
 
         for field in pseudo_marc[1:]:
             tag = field[:3]
-            data = unescape_entities(field[7:].decode('latin1')).encode('utf8')
+            data = unescape_entities(field[6:].decode('latin1')).encode('utf8')
 
             if tag.startswith(' '):
                 # Additional field data needs to be prepended with an extra space 
                 # for certain fields ...
-                for special_tag in ('55','260'):
-                    data = " %s" % (data,) if tag.startswith(special_tag) else data                
+                #for special_tag in ('55','260'):
+                #    data = " %s" % (data,) if tag.startswith(special_tag) else data
+                data = " %s" % (data.strip(),)
                 raw_fields[-1]['value'] = "%s%s" % (raw_fields[-1]['value'], data)
                 raw_fields[-1]['raw'] = "%s%s" % (raw_fields[-1]['raw'], field.strip())
             else:
@@ -558,7 +563,7 @@ class Reader(object):
                     'tag': tag, 
                     'indicator1': field[3], 
                     'indicator2': field[4], 
-                    'value': data, 
+                    'value': data.strip(), 
                     'raw': field.strip()
                 })
         

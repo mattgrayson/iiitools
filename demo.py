@@ -21,6 +21,7 @@ def print_record(record, full_output=False, output_marc=False, output_raw=False,
     print "ISBN(s): {0}".format(', '.join(record.isbn))
     print "Publisher(s): {0}".format(', '.join(record.publishers))
     print "Publisher name(s): {0}".format(', '.join(record.publisher_names))
+    print "Date publised: {0}".format(record.date_published)
     print "Author: {0}".format(record.author)
     print "URLs:"
     for url in record.links: print " - {0}: {1}".format(url['label'], url['url'])
