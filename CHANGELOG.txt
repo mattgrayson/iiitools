@@ -1,0 +1,5 @@
+2010.01.06, Version 1.06
+
+  * Added ChangeLog
+  
+  * Added subfield 'p' to Record.title property
