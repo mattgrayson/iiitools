@@ -1,3 +1,7 @@
+2010.01.07, Version 1.07
+
+  * Added check for field '060' to Record.call_number property
+
 2010.01.06, Version 1.06
 
   * Added ChangeLog

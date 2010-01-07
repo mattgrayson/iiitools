@@ -14,7 +14,7 @@ Requirements:   Python 2.5 or later
 __author__ = "Matt Grayson (mattgrayson@uthsc.edu)"
 __copyright__ = "Copyright 2009, Matt Grayson"
 __license__ = "MIT"
-__version__ = "1.05"
+__version__ = "1.07"
 
 import httplib2
 import re
@@ -216,7 +216,11 @@ class Record(Record):
 
     @property
     def call_number(self):
-        return self['096'].format_field() if self['096'] else ''
+        if self['096']:
+            return self['096'].format_field()
+        elif self['060']:
+            return self['060'].format_field()
+        return ''
 
     @property
     def comp_file_characteristics(self):
@@ -355,6 +359,7 @@ class Record(Record):
     def title(self):        
         t = self['245']['a'] if self['245']['a'] else ''
         t = "%s %s" % (t, self['245']['b']) if self['245']['b'] else t
+        t = "%s %s" % (t, self['245']['p']) if self['245']['p'] else t
         return strip_end_punctuation(t)
     
     @property

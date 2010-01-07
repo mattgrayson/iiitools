@@ -14,7 +14,7 @@ Requirements:   Python 2.5 or later
 __author__ = "Matt Grayson (mattgrayson@uthsc.edu)"
 __copyright__ = "Copyright 2009, Matt Grayson"
 __license__ = "MIT"
-__version__ = "1.06"
+__version__ = "1.07"
 
 import httplib2
 import re
@@ -216,7 +216,11 @@ class Record(Record):
 
     @property
     def call_number(self):
-        return self['096'].format_field() if self['096'] else ''
+        if self['096']:
+            return self['096'].format_field()
+        elif self['060']:
+            return self['060'].format_field()
+        return ''
 
     @property
     def comp_file_characteristics(self):
